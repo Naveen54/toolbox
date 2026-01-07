@@ -4,6 +4,7 @@ import { Home } from './pages/Home';
 import { JsonViewer } from './pages/JsonViewer';
 import { NotesEditor } from './pages/NotesEditor';
 import { GoogleDriveDownloader } from './pages/GoogleDriveDownloader';
+import { FileHasher } from './pages/FileHasher';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="json-viewer" element={<JsonViewer />} />
         <Route path="notes" element={<NotesEditor />} />
         <Route path="gdrive-downloader" element={<GoogleDriveDownloader />} />
+        <Route path="file-hasher" element={<FileHasher />} />
       </Route>
     </Routes>
   );

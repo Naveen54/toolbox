@@ -131,7 +131,6 @@ export const GoogleDriveDownloader: React.FC = () => {
                 throw new Error(data.error.message);
             }
 
-            console.log('[Retrieve Success]', data.files);
             setItems(data.files || []);
             if (!breadcrumb.find(b => b.id === folderId)) {
                 setBreadcrumb([...breadcrumb, { id: folderId, name: folderName }]);
@@ -251,7 +250,6 @@ export const GoogleDriveDownloader: React.FC = () => {
                 worker.onmessage = (event) => {
                     const { type, downloaded, error } = event.data;
                     if (type === 'PROGRESS') {
-                        console.log(`[Worker Progress] File: ${fileId}, Chunk: ${downloaded}`);
                         setDownloadProgress(prev => ({
                             ...prev,
                             [fileId]: {
@@ -260,7 +258,6 @@ export const GoogleDriveDownloader: React.FC = () => {
                             }
                         }));
                     } else if (type === 'DOWNLOAD_COMPLETED') {
-                        console.log(`[Worker Done] File: ${fileId}`);
                         setDownloadProgress(prev => ({
                             ...prev,
                             [fileId]: { ...prev[fileId], status: 'COMPLETED' }

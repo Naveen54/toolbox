@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Home, FileJson, Settings, FileText } from 'lucide-react';
+import { Home, FileJson, Settings, FileText, Hash } from 'lucide-react';
 import './Layout.scss';
 
 export const Layout: React.FC = () => {
@@ -38,6 +38,14 @@ export const Layout: React.FC = () => {
           >
             <FileText size={20} />
             <span>Notes Editor</span>
+          </NavLink>
+
+          <NavLink
+            to="/file-hasher"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
+            <Hash size={20} />
+            <span>File Hasher</span>
           </NavLink>
         </nav>
 

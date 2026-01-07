@@ -90,7 +90,6 @@ class GDriveAssetDownloader {
         }
 
         const data = await response.arrayBuffer();
-        console.log(`[Worker] Part downloaded: ${range[0]}-${range[1]} (${data.byteLength} bytes)`);
 
         // Ensure sequential writing if necessary, although FileSystemWritableFileStream.seek/write handles offsets
         await this.writeData({ data, offset: range[0] });
@@ -101,16 +100,13 @@ class GDriveAssetDownloader {
         let waitCount = 0;
         while (this.writerRunning) {
             waitCount++;
-            if (waitCount % 100 === 0) console.log(`[Worker] Still waiting for writer lock... ${waitCount}`);
             await new Promise(resolve => setTimeout(resolve, 10));
         }
 
         try {
             this.writerRunning = true;
-            console.log(`[Worker] Writing ${data.byteLength} bytes at offset ${offset}`);
             await this.fileWriter.seek(offset);
             await this.fileWriter.write(data);
-            console.log(`[Worker] Write successful at offset ${offset}`);
         } catch (e) {
             console.error(`[Worker Write Error] Offset ${offset}: ${e}`);
             throw e;
@@ -122,7 +118,6 @@ class GDriveAssetDownloader {
 
 onmessage = async (event) => {
     const { fileHandler, fileId, accessToken, size, partsize } = event.data;
-    console.log(`[Worker] Starting download for ${fileId}, size: ${size}`);
     try {
         const fileWriter = await fileHandler.createWritable();
         const downloader = new GDriveAssetDownloader({ fileWriter, fileId, accessToken, size });

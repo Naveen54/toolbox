@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileJson, FileText, ArrowRight, FolderOpen } from 'lucide-react';
+import { FileJson, FileText, ArrowRight, FolderOpen, Hash } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import './Home.scss';
 
@@ -45,6 +45,19 @@ export const Home: React.FC = () => {
                     <div className="tool-info">
                         <h3>GDrive Downloader</h3>
                         <p>Browse public Google Drive folders and get direct download links.</p>
+                    </div>
+                    <div className="tool-action">
+                        <ArrowRight size={20} />
+                    </div>
+                </Link>
+
+                <Link to="/file-hasher" className="tool-card glass-panel">
+                    <div className="tool-icon">
+                        <Hash size={32} />
+                    </div>
+                    <div className="tool-info">
+                        <h3>File Hasher</h3>
+                        <p>Generate cryptographic hashes (MD5, SHA1, SHA256, SHA512) for files using Go WASM.</p>
                     </div>
                     <div className="tool-action">
                         <ArrowRight size={20} />

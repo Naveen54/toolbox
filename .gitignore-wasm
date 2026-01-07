@@ -1,0 +1,8 @@
+# Add these lines to your .gitignore file
+
+# Go WASM generated files (should be built, not committed)
+public/hasher.wasm
+public/wasm_exec.js
+
+# Note: Some teams prefer to commit WASM files for deployment convenience
+# If you want to commit them, remove these lines from .gitignore
