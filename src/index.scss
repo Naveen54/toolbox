@@ -1,0 +1,78 @@
+@use "sass:color";
+
+:root {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --accent-primary: #3b82f6;
+  --accent-secondary: #8b5cf6;
+  --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  --glass-bg: rgba(30, 41, 59, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+// Scrollbar
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+// Utility classes for glassmorphism
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.btn-primary {
+  background: var(--accent-gradient);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  
+  &:hover {
+    opacity: 0.9;
+  }
+}
+
+// React Aria Components Focus Ring
+.react-aria-Button, .react-aria-Link, .react-aria-TextField input, .react-aria-TextArea textarea {
+  outline: none;
+  &[data-focus-visible] {
+    box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent-primary);
+  }
+}

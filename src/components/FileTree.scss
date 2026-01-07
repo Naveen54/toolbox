@@ -1,0 +1,54 @@
+.file-tree {
+    user-select: none;
+
+    .tree-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.5rem;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        color: var(--text-secondary);
+        transition: all 0.1s;
+        font-size: 0.9rem;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        &.selected {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-primary);
+        }
+
+        .toggle-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            opacity: 0.7;
+        }
+
+        .icon {
+            display: flex;
+            align-items: center;
+            opacity: 0.8;
+        }
+
+        .name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    }
+
+    .empty-folder {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        opacity: 0.5;
+        padding: 0.25rem 0;
+        font-style: italic;
+    }
+}

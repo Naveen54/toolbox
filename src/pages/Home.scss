@@ -1,0 +1,124 @@
+.home-page {
+    max-width: 1200px;
+    margin: 0 auto;
+
+    .home-header {
+        text-align: center;
+        margin-bottom: 4rem;
+        padding-top: 2rem;
+
+        .welcome-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+
+            .gradient-text {
+                background: var(--accent-gradient);
+                background-clip: text;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }
+        }
+
+        .welcome-subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+    }
+
+    .tools-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 2rem;
+
+        .tool-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 1.5rem;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: transform 0.2s, box-shadow 0.2s;
+
+            &:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.3);
+                border-color: rgba(59, 130, 246, 0.3);
+
+                .tool-action {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+
+                .tool-icon {
+                    color: var(--accent-primary);
+                    background: rgba(59, 130, 246, 0.1);
+                }
+            }
+
+            .tool-icon {
+                padding: 1rem;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 0.75rem;
+                color: var(--text-secondary);
+                transition: all 0.2s;
+            }
+
+            .tool-info {
+                flex: 1;
+
+                h3 {
+                    margin: 0 0 0.5rem 0;
+                    font-size: 1.25rem;
+                    font-weight: 600;
+                }
+
+                p {
+                    margin: 0;
+                    color: var(--text-secondary);
+                    line-height: 1.5;
+                    font-size: 0.9rem;
+                }
+            }
+
+            .tool-action {
+                opacity: 0;
+                transform: translateX(-10px);
+                transition: all 0.2s;
+                color: var(--accent-primary);
+                align-self: center;
+            }
+
+            &.coming-soon {
+                opacity: 0.6;
+                cursor: default;
+
+                &:hover {
+                    transform: none;
+                    box-shadow: none;
+                    border-color: var(--glass-border);
+                }
+            }
+        }
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
