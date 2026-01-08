@@ -3,8 +3,10 @@ import ReactJson from 'react-json-view';
 import { AlertCircle, Check, Copy, Trash2 } from 'lucide-react';
 import { Label } from 'react-aria-components';
 import './JsonViewer.scss';
+import { withPageView } from '../utils/withPageView';
+import { trackEvent } from '../utils/analytics';
 
-export const JsonViewer: React.FC = () => {
+const JsonViewerPage: React.FC = () => {
     const [input, setInput] = useState<string>('{\n  "welcome": "to DevToolbox",\n  "features": [\n    "JSON Viewer",\n    "Premium Design"\n  ]\n}');
     const [json, setJson] = useState<object | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -29,17 +31,20 @@ export const JsonViewer: React.FC = () => {
     const handleCopy = () => {
         navigator.clipboard.writeText(JSON.stringify(json, null, 2));
         setCopied(true);
+        trackEvent('json_copy_clicked', { has_json: Boolean(json) });
         setTimeout(() => setCopied(false), 2000);
     };
 
     const handleFormat = () => {
         if (json) {
             setInput(JSON.stringify(json, null, 2));
+            trackEvent('json_format_clicked', { has_json: true });
         }
     };
 
     const handleClear = () => {
         setInput('');
+        trackEvent('json_clear_clicked');
     };
 
     return (
@@ -106,3 +111,5 @@ export const JsonViewer: React.FC = () => {
         </div>
     );
 };
+
+export const JsonViewer = withPageView(JsonViewerPage, 'JSON Viewer');

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Save, CheckCircle, Eye, Edit3 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './MarkdownEditor.scss';
+import { trackEvent } from '../utils/analytics';
 
 interface MarkdownEditorProps {
     fileHandle: FileSystemFileHandle;
@@ -13,6 +14,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ fileHandle }) =>
     const [isSaving, setIsSaving] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview');
+    const lastAutosaveEventAtRef = useRef<number>(0);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -32,6 +34,10 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ fileHandle }) =>
             const text = await file.text();
             setContent(text);
             setLastSaved(new Date());
+
+            trackEvent('notes_file_opened', {
+                file_size_bytes: file.size,
+            });
         };
         loadFile();
     }, [fileHandle]);
@@ -43,6 +49,15 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ fileHandle }) =>
             await writable.write(text);
             await writable.close();
             setLastSaved(new Date());
+
+            // Throttle autosave events to avoid noise
+            const now = Date.now();
+            if (now - lastAutosaveEventAtRef.current > 30000) {
+                lastAutosaveEventAtRef.current = now;
+                trackEvent('notes_autosaved', {
+                    content_chars: text.length,
+                });
+            }
         } catch (err) {
             console.error('Failed to save:', err);
         } finally {
@@ -77,7 +92,10 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ fileHandle }) =>
                 <div className="view-controls">
                     <button
                         className={`view-btn ${viewMode === 'edit' ? 'active' : ''}`}
-                        onClick={() => setViewMode('edit')}
+                        onClick={() => {
+                            setViewMode('edit');
+                            trackEvent('notes_view_mode_changed', { mode: 'edit' });
+                        }}
                         title="Edit Mode (Ctrl+E)"
                     >
                         <Edit3 size={16} />
@@ -85,7 +103,10 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ fileHandle }) =>
                     </button>
                     <button
                         className={`view-btn ${viewMode === 'preview' ? 'active' : ''}`}
-                        onClick={() => setViewMode('preview')}
+                        onClick={() => {
+                            setViewMode('preview');
+                            trackEvent('notes_view_mode_changed', { mode: 'preview' });
+                        }}
                         title="Preview Mode (Ctrl+E)"
                     >
                         <Eye size={16} />

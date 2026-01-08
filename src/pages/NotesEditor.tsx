@@ -5,6 +5,8 @@ import { MarkdownEditor } from '../components/MarkdownEditor';
 import { Modal } from '../components/Modal';
 import { ContextMenu } from '../components/ContextMenu';
 import './NotesEditor.scss';
+import { withPageView } from '../utils/withPageView';
+import { trackEvent } from '../utils/analytics';
 
 interface ContextMenuState {
     x: number;
@@ -13,7 +15,7 @@ interface ContextMenuState {
     parent: FileSystemDirectoryHandle;
 }
 
-export const NotesEditor: React.FC = () => {
+const NotesEditorPage: React.FC = () => {
     const [rootHandle, setRootHandle] = useState<FileSystemDirectoryHandle | null>(null);
     const [selectedFile, setSelectedFile] = useState<FileSystemFileHandle | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
@@ -27,10 +29,12 @@ export const NotesEditor: React.FC = () => {
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
     const handleOpenFolder = async () => {
+        trackEvent('notes_open_folder_clicked');
         try {
             const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
             setRootHandle(handle);
             setSelectedFile(null);
+            trackEvent('notes_folder_opened');
         } catch (err) {
             if ((err as Error).name !== 'AbortError') {
                 console.error('Error opening folder:', err);
@@ -40,6 +44,7 @@ export const NotesEditor: React.FC = () => {
 
     const handleContextMenu = (e: React.MouseEvent, handle: FileSystemHandle, parent: FileSystemDirectoryHandle) => {
         e.preventDefault();
+        trackEvent('notes_context_menu_opened');
         setContextMenu({
             x: e.clientX,
             y: e.clientY,
@@ -54,6 +59,7 @@ export const NotesEditor: React.FC = () => {
         setModalMode('create');
         setFileNameInput('');
         setIsModalOpen(true);
+        trackEvent('notes_create_clicked');
     };
 
     const openRenameModal = () => {
@@ -61,12 +67,14 @@ export const NotesEditor: React.FC = () => {
         setModalMode('rename');
         setFileNameInput(contextMenu.handle.name);
         setIsModalOpen(true);
+        trackEvent('notes_rename_clicked');
     };
 
     const openDeleteModal = () => {
         if (!contextMenu) return;
         setModalMode('delete');
         setIsModalOpen(true);
+        trackEvent('notes_delete_clicked');
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -79,6 +87,7 @@ export const NotesEditor: React.FC = () => {
                 const name = fileNameInput.trim();
                 const fileName = name.endsWith('.md') ? name : `${name}.md`;
                 await rootHandle.getFileHandle(fileName, { create: true });
+                trackEvent('notes_created');
             } else if (modalMode === 'rename' && contextMenu) {
                 if (!fileNameInput.trim()) return;
                 const name = fileNameInput.trim();
@@ -98,11 +107,15 @@ export const NotesEditor: React.FC = () => {
                 if (selectedFile?.name === contextMenu.handle.name) {
                     setSelectedFile(null);
                 }
+
+                trackEvent('notes_renamed');
             } else if (modalMode === 'delete' && contextMenu) {
                 await contextMenu.parent.removeEntry(contextMenu.handle.name);
                 if (selectedFile?.name === contextMenu.handle.name) {
                     setSelectedFile(null);
                 }
+
+                trackEvent('notes_deleted');
             }
 
             setRefreshKey(prev => prev + 1);
@@ -148,7 +161,10 @@ export const NotesEditor: React.FC = () => {
                         <div className="file-tree-container">
                             <FileTree
                                 handle={rootHandle}
-                                onSelectFile={setSelectedFile}
+                                onSelectFile={(fileHandle) => {
+                                    setSelectedFile(fileHandle);
+                                    if (fileHandle) trackEvent('notes_file_selected');
+                                }}
                                 selectedFile={selectedFile}
                                 key={refreshKey}
                                 onContextMenu={handleContextMenu}
@@ -220,3 +236,5 @@ export const NotesEditor: React.FC = () => {
         </div>
     );
 };
+
+export const NotesEditor = withPageView(NotesEditorPage, 'Notes Editor');

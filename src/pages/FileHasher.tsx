@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Hash, Upload, Loader2, CheckCircle2, Copy, Check, FileType } from 'lucide-react';
 import { ProgressBar, Label } from 'react-aria-components';
 import './FileHasher.scss';
+import { withPageView } from '../utils/withPageView';
+import { trackEvent } from '../utils/analytics';
 
 interface HashResult {
     md5?: string;
@@ -21,7 +23,7 @@ interface FileHashInfo {
     error?: string;
 }
 
-export const FileHasher: React.FC = () => {
+const FileHasherPage: React.FC = () => {
     const [wasmReady, setWasmReady] = useState(false);
     const [wasmError, setWasmError] = useState<string | null>(null);
     const [fileInfo, setFileInfo] = useState<FileHashInfo | null>(null);
@@ -94,6 +96,10 @@ export const FileHasher: React.FC = () => {
         if (!files || files.length === 0) return;
 
         const file = files[0];
+        trackEvent('file_selected', {
+            file_size_bytes: file.size,
+            file_type: file.type || 'unknown',
+        });
         setFileInfo({
             file,
             goProgress: 0,
@@ -117,6 +123,11 @@ export const FileHasher: React.FC = () => {
 
         try {
             // Hash with Go WASM first
+            trackEvent('hash_started', {
+                hasher_type: 'go',
+                file_size_bytes: file.size,
+                algorithms: selectedAlgorithms.join(','),
+            });
             const goResult = await hashWithGoWasm(file, selectedAlgorithms);
             
             setFileInfo(prev => {
@@ -128,7 +139,19 @@ export const FileHasher: React.FC = () => {
                 };
             });
 
+            trackEvent('hash_completed', {
+                hasher_type: 'go',
+                file_size_bytes: file.size,
+                algorithms: selectedAlgorithms.join(','),
+                duration_ms: goResult.timeTaken ? Math.round(goResult.timeTaken) : undefined,
+            });
+
             // Then hash with JS Crypto
+            trackEvent('hash_started', {
+                hasher_type: 'js',
+                file_size_bytes: file.size,
+                algorithms: selectedAlgorithms.join(','),
+            });
             const jsResult = await hashWithJsCrypto(file, selectedAlgorithms);
 
             setFileInfo(prev => {
@@ -138,6 +161,20 @@ export const FileHasher: React.FC = () => {
                     status: 'completed',
                     jsHashes: jsResult,
                 };
+            });
+
+            trackEvent('hash_completed', {
+                hasher_type: 'js',
+                file_size_bytes: file.size,
+                algorithms: selectedAlgorithms.join(','),
+                duration_ms: jsResult.timeTaken ? Math.round(jsResult.timeTaken) : undefined,
+            });
+
+            // Dedicated event you can mark as a GA4 "Key Event" (conversion).
+            // GA4 key-events are configured in GA UI; code just needs to emit a stable event name.
+            trackEvent('file_hash_completed', {
+                file_size_bytes: file.size,
+                algorithms: selectedAlgorithms.join(','),
             });
         } catch (err) {
             console.error('Hashing error:', err);
@@ -149,6 +186,8 @@ export const FileHasher: React.FC = () => {
                     error: (err as Error).message,
                 };
             });
+
+            trackEvent('hash_failed');
         }
     };
 
@@ -237,14 +276,17 @@ export const FileHasher: React.FC = () => {
     const handleCopyHash = (algorithm: string, hash: string, hasherType: 'go' | 'js') => {
         navigator.clipboard.writeText(hash);
         setCopiedHash(`${hasherType}-${algorithm}`);
+        trackEvent('hash_copied', { hasher_type: hasherType, algorithm });
         setTimeout(() => setCopiedHash(null), 2000);
     };
 
     const toggleAlgorithm = (algorithm: string) => {
         setSelectedAlgorithms(prev => {
             if (prev.includes(algorithm)) {
+                trackEvent('hash_algorithm_toggled', { algorithm, action: 'remove' });
                 return prev.filter(alg => alg !== algorithm);
             } else {
+                trackEvent('hash_algorithm_toggled', { algorithm, action: 'add' });
                 return [...prev, algorithm];
             }
         });
@@ -259,6 +301,7 @@ export const FileHasher: React.FC = () => {
     };
 
     const handleSelectFile = () => {
+        trackEvent('select_file_clicked');
         fileInputRef.current?.click();
     };
 
@@ -504,3 +547,5 @@ export const FileHasher: React.FC = () => {
         </div>
     );
 };
+
+export const FileHasher = withPageView(FileHasherPage, 'File Hasher');

@@ -2,8 +2,10 @@ import React from 'react';
 import { FileJson, FileText, ArrowRight, FolderOpen, Hash } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import './Home.scss';
+import { withPageView } from '../utils/withPageView';
+import { trackEvent } from '../utils/analytics';
 
-export const Home: React.FC = () => {
+const HomePage: React.FC = () => {
     return (
         <div className="home-page fade-in">
             <header className="home-header">
@@ -12,7 +14,11 @@ export const Home: React.FC = () => {
             </header>
 
             <div className="tools-grid">
-                <Link to="/json-viewer" className="tool-card glass-panel">
+                <Link
+                    to="/json-viewer"
+                    className="tool-card glass-panel"
+                    onClick={() => trackEvent('tool_opened', { tool: 'json_viewer' })}
+                >
                     <div className="tool-icon">
                         <FileJson size={32} />
                     </div>
@@ -25,7 +31,11 @@ export const Home: React.FC = () => {
                     </div>
                 </Link>
 
-                <Link to="/notes" className="tool-card glass-panel">
+                <Link
+                    to="/notes"
+                    className="tool-card glass-panel"
+                    onClick={() => trackEvent('tool_opened', { tool: 'notes_editor' })}
+                >
                     <div className="tool-icon">
                         <FileText size={32} />
                     </div>
@@ -38,7 +48,11 @@ export const Home: React.FC = () => {
                     </div>
                 </Link>
 
-                <Link to="/gdrive-downloader" className="tool-card glass-panel">
+                <Link
+                    to="/gdrive-downloader"
+                    className="tool-card glass-panel"
+                    onClick={() => trackEvent('tool_opened', { tool: 'gdrive_downloader' })}
+                >
                     <div className="tool-icon">
                         <FolderOpen size={32} />
                     </div>
@@ -51,7 +65,11 @@ export const Home: React.FC = () => {
                     </div>
                 </Link>
 
-                <Link to="/file-hasher" className="tool-card glass-panel">
+                <Link
+                    to="/file-hasher"
+                    className="tool-card glass-panel"
+                    onClick={() => trackEvent('tool_opened', { tool: 'file_hasher' })}
+                >
                     <div className="tool-icon">
                         <Hash size={32} />
                     </div>
@@ -78,3 +96,5 @@ export const Home: React.FC = () => {
         </div>
     );
 };
+
+export const Home = withPageView(HomePage, 'Home');

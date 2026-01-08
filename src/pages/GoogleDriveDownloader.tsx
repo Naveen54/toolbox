@@ -25,6 +25,8 @@ import {
 import './GoogleDriveDownloader.scss';
 import { fetchFolderContentsRecursive, getFileHandleRecursive } from '../utils/gdriveUtils';
 import type { GDriveFile } from '../utils/gdriveUtils';
+import { withPageView } from '../utils/withPageView';
+import { trackEvent } from '../utils/analytics';
 
 interface DriveItem {
     id: string;
@@ -47,7 +49,7 @@ interface DownloadProgress {
     };
 }
 
-export const GoogleDriveDownloader: React.FC = () => {
+const GoogleDriveDownloaderPage: React.FC = () => {
     const [url, setUrl] = useState('');
     const [accessToken, setAccessToken] = useState<string | null>(sessionStorage.getItem('gdrive_token'));
     const [user, setUser] = useState<UserInfo | null>(null);
@@ -65,6 +67,7 @@ export const GoogleDriveDownloader: React.FC = () => {
     const CLIENT_ID = '1005080280366-oomuptpmo0lr51cnr7q0trkhpmt5vgsf.apps.googleusercontent.com';
 
     const handleLogin = () => {
+        trackEvent('gdrive_signin_clicked');
         const scope = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
         const redirectUri = window.location.origin + '/gdrive-downloader';
         const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
@@ -145,6 +148,7 @@ export const GoogleDriveDownloader: React.FC = () => {
 
     const handleRetrieve = () => {
         const id = extractFolderId(url);
+        trackEvent('gdrive_retrieve_clicked', { is_valid_url: Boolean(id) });
         if (id) {
             setBreadcrumb([]);
             fetchFolderContents(id, 'Home');
@@ -155,6 +159,7 @@ export const GoogleDriveDownloader: React.FC = () => {
 
     const handleFolderClick = (item: DriveItem) => {
         if (item.mimeType === 'application/vnd.google-apps.folder') {
+            trackEvent('gdrive_folder_opened');
             fetchFolderContents(item.id, item.name);
         }
     };
@@ -162,6 +167,7 @@ export const GoogleDriveDownloader: React.FC = () => {
     const navigateToBreadcrumb = (id: string, name: string, index: number) => {
         const newBreadcrumb = breadcrumb.slice(0, index + 1);
         setBreadcrumb(newBreadcrumb);
+        trackEvent('gdrive_breadcrumb_clicked', { level: index + 1 });
         fetchFolderContents(id, name);
     };
 
@@ -209,6 +215,11 @@ export const GoogleDriveDownloader: React.FC = () => {
         const fileName = exportConfig ? `${file.name}${exportConfig.ext}` : file.name;
         const size = parseInt(file.size || '0');
 
+        trackEvent('gdrive_download_started', {
+            is_google_apps: file.mimeType?.startsWith('application/vnd.google-apps.') ?? false,
+            size_bytes: size || undefined,
+        });
+
         setDownloadProgress(prev => ({
             ...prev,
             [fileId]: { downloaded: 0, total: size, status: 'DOWNLOADING' }
@@ -233,6 +244,8 @@ export const GoogleDriveDownloader: React.FC = () => {
                     ...prev,
                     [fileId]: { ...prev[fileId], status: 'COMPLETED', downloaded: size || 100, total: size || 100 }
                 }));
+
+                trackEvent('gdrive_download_completed', { size_bytes: size || undefined });
                 return;
             }
 
@@ -263,6 +276,7 @@ export const GoogleDriveDownloader: React.FC = () => {
                             [fileId]: { ...prev[fileId], status: 'COMPLETED' }
                         }));
                         worker.terminate();
+                        trackEvent('gdrive_download_completed', { size_bytes: size || undefined });
                         resolve();
                     } else if (type === 'DOWNLOAD_FAILED') {
                         setDownloadProgress(prev => ({
@@ -270,6 +284,7 @@ export const GoogleDriveDownloader: React.FC = () => {
                             [fileId]: { ...prev[fileId], status: 'FAILED' }
                         }));
                         worker.terminate();
+                        trackEvent('gdrive_download_failed');
                         reject(new Error(error));
                     }
                 };
@@ -284,6 +299,10 @@ export const GoogleDriveDownloader: React.FC = () => {
     };
 
     const handleDownloadItem = async (item: DriveItem) => {
+        trackEvent('gdrive_download_item_clicked', {
+            is_folder: item.mimeType === 'application/vnd.google-apps.folder',
+            is_google_apps: item.mimeType?.startsWith('application/vnd.google-apps.') ?? false,
+        });
         const rootHandle = await ensureDirectoryHandle();
         if (!rootHandle || !accessToken) return;
 
@@ -305,6 +324,7 @@ export const GoogleDriveDownloader: React.FC = () => {
     };
 
     const handleDownloadAll = async () => {
+        trackEvent('gdrive_download_all_clicked', { items_count: items.length });
         const rootHandle = await ensureDirectoryHandle();
         if (!rootHandle || !accessToken || items.length === 0) return;
 
@@ -392,6 +412,7 @@ export const GoogleDriveDownloader: React.FC = () => {
                                 </div>
                             )}
                             <Button className="btn-secondary sign-out-btn" onPress={() => {
+                                trackEvent('gdrive_signout_clicked');
                                 setAccessToken(null);
                                 setUser(null);
                                 sessionStorage.removeItem('gdrive_token');
@@ -530,3 +551,5 @@ export const GoogleDriveDownloader: React.FC = () => {
         </div>
     );
 };
+
+export const GoogleDriveDownloader = withPageView(GoogleDriveDownloaderPage, 'Google Drive Downloader');
