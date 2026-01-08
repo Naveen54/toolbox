@@ -8,6 +8,7 @@
     "dev:analyze": "npm-run-all --parallel dev serve:analyzer",
     "build": "npm run build:wasm && tsc -b && vite build",
     "build:wasm": "node build-wasm.js",
+    "build:netlify": "tsc -b && vite build",
     "build:analyze": "cross-env ANALYZE=true tsc -b && vite build && npm run serve:analyzer",
     "analyze": "cross-env ANALYZE=true vite build && http-server dist -p 8888 -o stats.html",
     "serve:analyzer": "cross-env ANALYZE=true vite build && http-server dist -p 8888 -o stats.html",

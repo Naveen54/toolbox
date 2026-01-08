@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Home, FileJson, Settings, FileText, Hash, FolderOpen } from 'lucide-react';
+import { Home, FileJson, Settings, FileText, Hash } from 'lucide-react';
 import './Layout.scss';
 
 export const Layout: React.FC = () => {

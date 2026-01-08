@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileJson, FileText, ArrowRight, FolderOpen, Hash } from 'lucide-react';
+import { FileJson, FileText, ArrowRight, Hash } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import './Home.scss';
 import { withPageView } from '../utils/withPageView';

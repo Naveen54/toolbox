@@ -12,6 +12,18 @@ dist
 dist-ssr
 *.local
 
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Netlify local build artifacts
+.netlify/
+
+# Keep prebuilt WASM assets committed for CI/CD (e.g., Netlify)
+!public/hasher.wasm
+!public/wasm_exec.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
