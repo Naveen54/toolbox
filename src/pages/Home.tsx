@@ -48,6 +48,7 @@ const HomePage: React.FC = () => {
                     </div>
                 </Link>
 
+                {/*
                 <Link
                     to="/gdrive-downloader"
                     className="tool-card glass-panel"
@@ -64,6 +65,7 @@ const HomePage: React.FC = () => {
                         <ArrowRight size={20} />
                     </div>
                 </Link>
+                */}
 
                 <Link
                     to="/file-hasher"

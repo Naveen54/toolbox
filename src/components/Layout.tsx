@@ -40,6 +40,7 @@ export const Layout: React.FC = () => {
             <span>Notes Editor</span>
           </NavLink>
 
+          {/*
           <NavLink
             to="/gdrive-downloader"
             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
@@ -47,6 +48,7 @@ export const Layout: React.FC = () => {
             <FolderOpen size={20} />
             <span>GDrive Downloader</span>
           </NavLink>
+          */}
 
           <NavLink
             to="/file-hasher"
