@@ -31,54 +31,42 @@ const FileHasherPage: React.FC = () => {
     const [copiedHash, setCopiedHash] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const jsWorkerRef = useRef<Worker | null>(null);
+    const goWorkerRef = useRef<Worker | null>(null);
 
-    // Initialize WASM in main thread
+    // Initialize workers
     useEffect(() => {
-        const loadWasm = async () => {
-            try {
-                const script = document.createElement('script');
-                script.src = '/wasm_exec.js';
-                script.async = false;
-                
-                script.onload = async () => {
-                    try {
-                        // @ts-ignore
-                        const go = new Go();
-                        
-                        const result = await WebAssembly.instantiateStreaming(
-                            fetch('/hasher.wasm'),
-                            go.importObject
-                        );
-                        
-                        go.run(result.instance);
-                        
+        // Initialize Go WASM Worker
+        try {
+            const goWorker = new Worker(
+                new URL('../workers/goHashWorker.ts', import.meta.url),
+                { type: 'module' }
+            );
+            
+            goWorker.onmessage = (e) => {
+                const { type, success, error, zeroCopyEnabled } = e.data;
+                if (type === 'INIT_COMPLETE') {
+                    if (success) {
+                        console.log(`Go WASM worker initialized (zero-copy: ${zeroCopyEnabled})`);
                         setWasmReady(true);
-                    } catch (err) {
-                        console.error('Failed to instantiate WASM:', err);
-                        setWasmError(`Failed to load WASM: ${(err as Error).message}`);
+                    } else {
+                        console.error('Go WASM worker init failed:', error);
+                        setWasmError(`Failed to load WASM: ${error}`);
                     }
-                };
-                
-                script.onerror = () => {
-                    setWasmError('Failed to load wasm_exec.js');
-                };
-                
-                document.body.appendChild(script);
-                
-                return () => {
-                    if (document.body.contains(script)) {
-                        document.body.removeChild(script);
-                    }
-                };
-            } catch (err) {
-                console.error('Error loading WASM:', err);
-                setWasmError(`Error: ${(err as Error).message}`);
-            }
-        };
+                }
+            };
+            
+            goWorker.onerror = (err) => {
+                console.error('Go worker error:', err);
+                setWasmError(`Worker error: ${err.message}`);
+            };
+            
+            goWorkerRef.current = goWorker;
+        } catch (err) {
+            console.error('Failed to create Go worker:', err);
+            setWasmError(`Failed to create worker: ${(err as Error).message}`);
+        }
 
-        loadWasm();
-
-        // Initialize JS Crypto Worker
+        // Initialize C Hash WASM Worker
         try {
             const jsWorker = new Worker(new URL('../workers/jsHashWorker.ts', import.meta.url), { type: 'module' });
             jsWorkerRef.current = jsWorker;
@@ -87,6 +75,7 @@ const FileHasherPage: React.FC = () => {
         }
 
         return () => {
+            goWorkerRef.current?.terminate();
             jsWorkerRef.current?.terminate();
         };
     }, []);
@@ -146,7 +135,7 @@ const FileHasherPage: React.FC = () => {
                 duration_ms: goResult.timeTaken ? Math.round(goResult.timeTaken) : undefined,
             });
 
-            // Then hash with JS Crypto
+            // Then hash with C Hash WASM
             trackEvent('hash_started', {
                 hasher_type: 'js',
                 file_size_bytes: file.size,
@@ -192,48 +181,40 @@ const FileHasherPage: React.FC = () => {
     };
 
     const hashWithGoWasm = async (file: File, algorithms: string[]): Promise<HashResult> => {
-        const CHUNK_SIZE = 16 * 1024 * 1024; // 16MB optimal chunks
-        const fileSize = file.size;
-        let offset = 0;
+        return new Promise((resolve, reject) => {
+            if (!goWorkerRef.current) {
+                reject(new Error('Go Worker not available'));
+                return;
+            }
 
-        // @ts-ignore
-        if (!window.goInitHashers || !window.goUpdateHashers || !window.goFinalizeHashers) {
-            throw new Error('Go WASM functions not available');
-        }
+            const messageHandler = (e: MessageEvent) => {
+                const { type, hashes, timeTaken, error, progress } = e.data;
 
-        // @ts-ignore
-        window.goInitHashers(algorithms);
+                if (type === 'PROGRESS') {
+                    // Report Go progress
+                    setFileInfo(prev => {
+                        if (!prev) return null;
+                        return {
+                            ...prev,
+                            goProgress: Math.round(progress),
+                        };
+                    });
+                } else if (type === 'COMPLETE') {
+                    goWorkerRef.current?.removeEventListener('message', messageHandler);
+                    resolve({ ...hashes, timeTaken });
+                } else if (type === 'ERROR') {
+                    goWorkerRef.current?.removeEventListener('message', messageHandler);
+                    reject(new Error(error));
+                }
+            };
 
-        const startTime = performance.now();
-
-        while (offset < fileSize) {
-            const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
-            const arrayBuffer = await chunk.arrayBuffer();
-            const uint8Array = new Uint8Array(arrayBuffer);
-
-            // @ts-ignore
-            window.goUpdateHashers(uint8Array);
-
-            offset += arrayBuffer.byteLength;
-
-            // Report Go progress
-            setFileInfo(prev => {
-                if (!prev) return null;
-                return {
-                    ...prev,
-                    goProgress: Math.round((offset / fileSize) * 100),
-                };
+            goWorkerRef.current.addEventListener('message', messageHandler);
+            goWorkerRef.current.postMessage({
+                type: 'HASH_FILE',
+                file,
+                algorithms
             });
-
-            // Yield to UI
-            await new Promise(resolve => setTimeout(resolve, 0));
-        }
-
-        // @ts-ignore
-        const result = window.goFinalizeHashers();
-        const endTime = performance.now();
-
-        return { ...result, timeTaken: endTime - startTime };
+        });
     };
 
     const hashWithJsCrypto = async (file: File, algorithms: string[]): Promise<HashResult> => {
@@ -430,17 +411,17 @@ const FileHasherPage: React.FC = () => {
                                             </ProgressBar>
                                         </div>
 
-                                        {/* JS Crypto Progress */}
+                                        {/* C Hash WASM Progress */}
                                         <div className="progress-section">
                                             <div className="progress-header">
-                                                <Label>JS Crypto Hasher</Label>
+                                                <Label>C Hash WASM</Label>
                                                 <span className="progress-value">
                                                     {fileInfo.status === 'hashing-js' ? `${fileInfo.jsProgress}%` : 
                                                      fileInfo.jsProgress === 100 ? '✓ Complete' : 
                                                      fileInfo.jsProgress === 0 ? 'Pending...' : `${fileInfo.jsProgress}%`}
                                                 </span>
                                             </div>
-                                            <ProgressBar value={fileInfo.jsProgress} className="progress-bar" aria-label="JS Crypto Hasher Progress">
+                                            <ProgressBar value={fileInfo.jsProgress} className="progress-bar" aria-label="C Hash WASM Progress">
                                                 <div 
                                                     className={`progress-fill ${fileInfo.jsProgress === 100 ? 'complete' : ''}`}
                                                     style={{ width: `${fileInfo.jsProgress}%` }} 
@@ -499,10 +480,10 @@ const FileHasherPage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* JS Crypto Results */}
+                                        {/* C Hash WASM Results */}
                                         <div className="hash-group">
                                             <Label className="section-label">
-                                                JS Crypto Results 
+                                                C Hash WASM Results 
                                                 {fileInfo.jsHashes.timeTaken && (
                                                     <span className="time-badge">⚡ {(fileInfo.jsHashes.timeTaken / 1000).toFixed(2)}s</span>
                                                 )}
@@ -532,7 +513,7 @@ const FileHasherPage: React.FC = () => {
                                                         ))
                                                 ) : (
                                                     <div className="info-message">
-                                                        <p>No JS Crypto hashes generated.</p>
+                                                        <p>No C Hash WASM hashes generated.</p>
                                                     </div>
                                                 )}
                                             </div>

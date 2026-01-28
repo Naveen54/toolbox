@@ -19,6 +19,11 @@ export default defineConfig(() => {
     ].filter(Boolean),
     server: {
       port: 5173,
+      // Required headers for SharedArrayBuffer support
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
     },
   }
 })

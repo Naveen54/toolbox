@@ -1,5 +1,5 @@
-// Web Worker for JavaScript native crypto hashing
-import CryptoJS from 'crypto-js';
+// Web Worker for JavaScript hashing via hash-wasm (incremental, large-file friendly)
+import { createMD5, createSHA1, createSHA256, createSHA512, type IHasher } from 'hash-wasm';
 
 interface HashMessage {
     type: 'HASH_FILE';
@@ -7,40 +7,43 @@ interface HashMessage {
     algorithms: string[];
 }
 
+const CHUNK_SIZE = 128 * 1024 * 1024; // 2MB chunks
+
+const HASHER_FACTORIES: Record<string, () => Promise<IHasher>> = {
+    md5: createMD5,
+    sha1: createSHA1,
+    sha256: createSHA256,
+    sha512: createSHA512,
+};
+
 async function hashFile(file: File, algorithms: string[]) {
-    const CHUNK_SIZE = 16 * 1024 * 1024; // 16MB chunks
     const fileSize = file.size;
     let offset = 0;
 
     try {
-        // Initialize hashers
-        const hashers: { [key: string]: any } = {};
-        
-        if (algorithms.includes('md5')) {
-            hashers['md5'] = CryptoJS.algo.MD5.create();
+        const selectedAlgorithms = algorithms.filter((alg) => alg in HASHER_FACTORIES);
+        if (selectedAlgorithms.length === 0) {
+            throw new Error('No supported algorithms selected');
         }
-        if (algorithms.includes('sha1')) {
-            hashers['sha1'] = CryptoJS.algo.SHA1.create();
-        }
-        if (algorithms.includes('sha256')) {
-            hashers['sha256'] = CryptoJS.algo.SHA256.create();
-        }
-        if (algorithms.includes('sha512')) {
-            hashers['sha512'] = CryptoJS.algo.SHA512.create();
-        }
+
+        const hashers: Record<string, IHasher> = {};
+        await Promise.all(
+            selectedAlgorithms.map(async (alg) => {
+                const hasher = await HASHER_FACTORIES[alg]();
+                hasher.init();
+                hashers[alg] = hasher;
+            })
+        );
 
         const startTime = performance.now();
 
         while (offset < fileSize) {
             const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
             const arrayBuffer = await chunk.arrayBuffer();
-            
-            // Convert to WordArray for CryptoJS
-            const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer as any);
-            
-            // Update all hashers
+
+            const bytes = new Uint8Array(arrayBuffer);
             for (const hasher of Object.values(hashers)) {
-                hasher.update(wordArray);
+                hasher.update(bytes);
             }
 
             offset += arrayBuffer.byteLength;
@@ -57,7 +60,7 @@ async function hashFile(file: File, algorithms: string[]) {
         // Finalize all hashes
         const result: { [key: string]: string } = {};
         for (const [alg, hasher] of Object.entries(hashers)) {
-            result[alg] = hasher.finalize().toString();
+            result[alg] = hasher.digest('hex');
         }
 
         const endTime = performance.now();

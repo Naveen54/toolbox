@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"hash"
 	"syscall/js"
+	"time"
+	"unsafe"
 )
 
 // HashProgress represents the progress of a hashing operation
@@ -29,6 +31,10 @@ type HashResult struct {
 // Global hashers for incremental hashing
 var globalHashers map[string]hash.Hash
 var globalAlgorithms []string
+
+// Pre-allocated buffer for zero-copy - JS writes directly here
+var wasmBuffer []byte
+var wasmBufferPtr uintptr
 
 // initHashers initializes hash instances for incremental hashing
 func initHashers(this js.Value, args []js.Value) interface{} {
@@ -65,6 +71,58 @@ func initHashers(this js.Value, args []js.Value) interface{} {
 	}
 }
 
+// allocateBuffer allocates a buffer in Go's WASM memory and returns the pointer
+// JS can then write directly to this memory location
+func allocateBuffer(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		return map[string]interface{}{
+			"error": "Expected 1 argument: buffer size",
+		}
+	}
+
+	bufferSize := args[0].Int()
+
+	// Allocate buffer in Go's memory
+	wasmBuffer = make([]byte, bufferSize)
+
+	// Get the pointer to the buffer's underlying array
+	// This points to a location in WASM linear memory
+	wasmBufferPtr = uintptr(unsafe.Pointer(&wasmBuffer[0]))
+
+	return map[string]interface{}{
+		"success": true,
+		"pointer": uint32(wasmBufferPtr),
+		"size":    bufferSize,
+	}
+}
+
+// updateHashersZeroCopy processes data that JS has written directly to WASM memory
+// No copy needed - data is already in Go's memory!
+func updateHashersZeroCopy(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		return map[string]interface{}{
+			"error": "Expected 1 argument: data length",
+		}
+	}
+
+	dataLength := args[0].Int()
+
+	if wasmBuffer == nil || len(wasmBuffer) < dataLength {
+		return map[string]interface{}{
+			"error": "Buffer not allocated or too small",
+		}
+	}
+
+	// Write directly to hashers - NO COPY! Data is already in wasmBuffer
+	for _, hasher := range globalHashers {
+		hasher.Write(wasmBuffer[:dataLength])
+	}
+
+	return map[string]interface{}{
+		"success": true,
+	}
+}
+
 // updateHashers processes a chunk of data
 func updateHashers(this js.Value, args []js.Value) interface{} {
 	if len(args) < 1 {
@@ -77,11 +135,17 @@ func updateHashers(this js.Value, args []js.Value) interface{} {
 	dataChunk := args[0]
 	dataLength := dataChunk.Get("length").Int()
 	data := make([]byte, dataLength)
+	var startTime = time.Now()
 	js.CopyBytesToGo(data, dataChunk)
+	var elapsed = time.Since(startTime)
+	fmt.Println(elapsed.Milliseconds())
 
 	// Write to all active hashers
-	for _, hasher := range globalHashers {
+	for key, hasher := range globalHashers {
+		var startTime = time.Now()
 		hasher.Write(data)
+		var elapsed = time.Since(startTime)
+		fmt.Printf("%v : %v", key, elapsed.Milliseconds())
 	}
 
 	return map[string]interface{}{
@@ -318,6 +382,10 @@ func main() {
 	js.Global().Set("goInitHashers", js.FuncOf(initHashers))
 	js.Global().Set("goUpdateHashers", js.FuncOf(updateHashers))
 	js.Global().Set("goFinalizeHashers", js.FuncOf(finalizeHashers))
+
+	// Register zero-copy functions - JS writes directly to WASM memory
+	js.Global().Set("goAllocateBuffer", js.FuncOf(allocateBuffer))
+	js.Global().Set("goUpdateHashersZeroCopy", js.FuncOf(updateHashersZeroCopy))
 
 	<-c
 }
