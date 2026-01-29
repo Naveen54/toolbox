@@ -45,7 +45,7 @@ async function loadWasmExec(): Promise<void> {
     // Fallback: fetch and evaluate (module worker)
     const response = await fetch('/wasm_exec.js');
     const scriptText = await response.text();
-    // eslint-disable-next-line no-eval
+     
     (0, eval)(scriptText);
 }
 

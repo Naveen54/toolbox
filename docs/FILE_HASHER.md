@@ -14,6 +14,10 @@ The File Hasher is a web-based tool that uses **Go WebAssembly (WASM)** to compu
   - SHA512
 - **Real-time Progress**: Visual progress bar during hashing
 - **Go WASM Backend**: High-performance hashing using compiled Go code
+- **Multiple Hasher Implementations**:
+    - Go WASM (Go stdlib crypto)
+    - hash-wasm (WASM-backed incremental hashing)
+    - asmcrypto.js (asm.js hashing for SHA1/SHA256/SHA512)
 - **Copy to Clipboard**: Easy hash value copying
 - **Algorithm Selection**: Choose which algorithms to compute
 - **Beautiful UI**: Glassmorphic design consistent with the app

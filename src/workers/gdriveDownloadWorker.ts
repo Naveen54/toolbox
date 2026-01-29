@@ -4,7 +4,7 @@
 import { priorityQueue } from "async";
 
 let PART_SIZE = 4 * 1024 * 1024; // 4MB chunks for GDrive
-let CONCURRENCY = 6;
+const CONCURRENCY = 6;
 
 class GDriveAssetDownloader {
     totalParts: number = 0;
@@ -71,7 +71,7 @@ class GDriveAssetDownloader {
         }, 1000);
 
         for (let i = 1; i <= this.totalParts; i++) {
-            let end = Math.min(offset + PART_SIZE - 1, this.size - 1);
+            const end = Math.min(offset + PART_SIZE - 1, this.size - 1);
             this.downloaderQueue.push({ partNumber: i, range: [offset, end] }, i);
             offset = end + 1;
         }

@@ -17,9 +17,11 @@ interface FileHashInfo {
     file: File;
     goProgress: number;
     jsProgress: number;
-    status: 'pending' | 'hashing-go' | 'hashing-js' | 'completed' | 'error';
+    asmProgress: number;
+    status: 'pending' | 'hashing-go' | 'hashing-js' | 'hashing-asm' | 'completed' | 'error';
     goHashes: HashResult;
     jsHashes: HashResult;
+    asmHashes: HashResult;
     error?: string;
 }
 
@@ -32,6 +34,7 @@ const FileHasherPage: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const jsWorkerRef = useRef<Worker | null>(null);
     const goWorkerRef = useRef<Worker | null>(null);
+    const asmWorkerRef = useRef<Worker | null>(null);
 
     // Initialize workers
     useEffect(() => {
@@ -74,9 +77,18 @@ const FileHasherPage: React.FC = () => {
             console.error('Failed to create JS worker:', err);
         }
 
+        // Initialize asmcrypto.js Worker
+        try {
+            const asmWorker = new Worker(new URL('../workers/asmCryptoHashWorker.ts', import.meta.url), { type: 'module' });
+            asmWorkerRef.current = asmWorker;
+        } catch (err) {
+            console.error('Failed to create asmcrypto worker:', err);
+        }
+
         return () => {
             goWorkerRef.current?.terminate();
             jsWorkerRef.current?.terminate();
+            asmWorkerRef.current?.terminate();
         };
     }, []);
 
@@ -93,9 +105,11 @@ const FileHasherPage: React.FC = () => {
             file,
             goProgress: 0,
             jsProgress: 0,
+            asmProgress: 0,
             status: 'pending',
             goHashes: {},
             jsHashes: {},
+            asmHashes: {},
         });
 
         // Start hashing
@@ -108,7 +122,7 @@ const FileHasherPage: React.FC = () => {
             return;
         }
 
-        setFileInfo(prev => prev ? { ...prev, status: 'hashing-go', goProgress: 0, jsProgress: 0, goHashes: {}, jsHashes: {} } : null);
+        setFileInfo(prev => prev ? { ...prev, status: 'hashing-go', goProgress: 0, jsProgress: 0, asmProgress: 0, goHashes: {}, jsHashes: {}, asmHashes: {} } : null);
 
         try {
             // Hash with Go WASM first
@@ -147,7 +161,7 @@ const FileHasherPage: React.FC = () => {
                 if (!prev) return null;
                 return {
                     ...prev,
-                    status: 'completed',
+                    status: asmWorkerRef.current ? 'hashing-asm' : 'completed',
                     jsHashes: jsResult,
                 };
             });
@@ -158,6 +172,33 @@ const FileHasherPage: React.FC = () => {
                 algorithms: selectedAlgorithms.join(','),
                 duration_ms: jsResult.timeTaken ? Math.round(jsResult.timeTaken) : undefined,
             });
+
+            // Finally hash with asmcrypto.js (if available)
+            if (asmWorkerRef.current) {
+                trackEvent('hash_started', {
+                    hasher_type: 'asmcrypto',
+                    file_size_bytes: file.size,
+                    algorithms: selectedAlgorithms.join(','),
+                });
+
+                const asmResult = await hashWithAsmCrypto(file, selectedAlgorithms);
+
+                setFileInfo(prev => {
+                    if (!prev) return null;
+                    return {
+                        ...prev,
+                        status: 'completed',
+                        asmHashes: asmResult,
+                    };
+                });
+
+                trackEvent('hash_completed', {
+                    hasher_type: 'asmcrypto',
+                    file_size_bytes: file.size,
+                    algorithms: selectedAlgorithms.join(','),
+                    duration_ms: asmResult.timeTaken ? Math.round(asmResult.timeTaken) : undefined,
+                });
+            }
 
             // Dedicated event you can mark as a GA4 "Key Event" (conversion).
             // GA4 key-events are configured in GA UI; code just needs to emit a stable event name.
@@ -254,7 +295,43 @@ const FileHasherPage: React.FC = () => {
         });
     };
 
-    const handleCopyHash = (algorithm: string, hash: string, hasherType: 'go' | 'js') => {
+    const hashWithAsmCrypto = async (file: File, algorithms: string[]): Promise<HashResult> => {
+        return new Promise((resolve, reject) => {
+            if (!asmWorkerRef.current) {
+                resolve({});
+                return;
+            }
+
+            const messageHandler = (e: MessageEvent) => {
+                const { type, hashes, timeTaken, error, progress } = e.data;
+
+                if (type === 'PROGRESS') {
+                    setFileInfo(prev => {
+                        if (!prev) return null;
+                        return {
+                            ...prev,
+                            asmProgress: Math.round(progress),
+                        };
+                    });
+                } else if (type === 'COMPLETE') {
+                    asmWorkerRef.current?.removeEventListener('message', messageHandler);
+                    resolve({ ...hashes, timeTaken });
+                } else if (type === 'ERROR') {
+                    asmWorkerRef.current?.removeEventListener('message', messageHandler);
+                    reject(new Error(error));
+                }
+            };
+
+            asmWorkerRef.current.addEventListener('message', messageHandler);
+            asmWorkerRef.current.postMessage({
+                type: 'HASH_FILE',
+                file,
+                algorithms,
+            });
+        });
+    };
+
+    const handleCopyHash = (algorithm: string, hash: string, hasherType: 'go' | 'js' | 'asm') => {
         navigator.clipboard.writeText(hash);
         setCopiedHash(`${hasherType}-${algorithm}`);
         trackEvent('hash_copied', { hasher_type: hasherType, algorithm });
@@ -292,6 +369,7 @@ const FileHasherPage: React.FC = () => {
         switch (fileInfo.status) {
             case 'hashing-go':
             case 'hashing-js':
+            case 'hashing-asm':
                 return <Loader2 size={20} className="spin" />;
             case 'completed':
                 return <CheckCircle2 size={20} className="text-success" />;
@@ -335,7 +413,7 @@ const FileHasherPage: React.FC = () => {
                                         type="checkbox"
                                         checked={selectedAlgorithms.includes(alg)}
                                         onChange={() => toggleAlgorithm(alg)}
-                                        disabled={fileInfo?.status === 'hashing-go' || fileInfo?.status === 'hashing-js'}
+                                        disabled={fileInfo?.status === 'hashing-go' || fileInfo?.status === 'hashing-js' || fileInfo?.status === 'hashing-asm'}
                                     />
                                     <span className="algorithm-name">{alg.toUpperCase()}</span>
                                 </label>
@@ -353,7 +431,7 @@ const FileHasherPage: React.FC = () => {
                             type="file"
                             onChange={handleFileSelect}
                             style={{ display: 'none' }}
-                            disabled={fileInfo?.status === 'hashing-go' || fileInfo?.status === 'hashing-js' || selectedAlgorithms.length === 0}
+                            disabled={fileInfo?.status === 'hashing-go' || fileInfo?.status === 'hashing-js' || fileInfo?.status === 'hashing-asm' || selectedAlgorithms.length === 0}
                         />
                         
                         {!fileInfo ? (
@@ -379,7 +457,7 @@ const FileHasherPage: React.FC = () => {
                                             <p className="file-size">{formatFileSize(fileInfo.file.size)}</p>
                                         </div>
                                     </div>
-                                    {fileInfo.status !== 'hashing-go' && fileInfo.status !== 'hashing-js' && (
+                                    {fileInfo.status !== 'hashing-go' && fileInfo.status !== 'hashing-js' && fileInfo.status !== 'hashing-asm' && (
                                         <button 
                                             className="btn-secondary" 
                                             onClick={handleSelectFile}
@@ -391,7 +469,7 @@ const FileHasherPage: React.FC = () => {
                                 </div>
 
                                 {/* Progress Bars */}
-                                {(fileInfo.status === 'hashing-go' || fileInfo.status === 'hashing-js' || fileInfo.status === 'completed') && (
+                                {(fileInfo.status === 'hashing-go' || fileInfo.status === 'hashing-js' || fileInfo.status === 'hashing-asm' || fileInfo.status === 'completed') && (
                                     <div className="progress-sections">
                                         {/* Go WASM Progress */}
                                         <div className="progress-section">
@@ -425,6 +503,24 @@ const FileHasherPage: React.FC = () => {
                                                 <div 
                                                     className={`progress-fill ${fileInfo.jsProgress === 100 ? 'complete' : ''}`}
                                                     style={{ width: `${fileInfo.jsProgress}%` }} 
+                                                />
+                                            </ProgressBar>
+                                        </div>
+
+                                        {/* asmcrypto.js Progress */}
+                                        <div className="progress-section">
+                                            <div className="progress-header">
+                                                <Label>asmcrypto.js</Label>
+                                                <span className="progress-value">
+                                                    {fileInfo.status === 'hashing-asm' ? `${fileInfo.asmProgress}%` :
+                                                     fileInfo.asmProgress === 100 ? '✓ Complete' :
+                                                     fileInfo.asmProgress === 0 ? 'Pending...' : `${fileInfo.asmProgress}%`}
+                                                </span>
+                                            </div>
+                                            <ProgressBar value={fileInfo.asmProgress} className="progress-bar" aria-label="asmcrypto.js Progress">
+                                                <div
+                                                    className={`progress-fill ${fileInfo.asmProgress === 100 ? 'complete' : ''}`}
+                                                    style={{ width: `${fileInfo.asmProgress}%` }}
                                                 />
                                             </ProgressBar>
                                         </div>
@@ -514,6 +610,45 @@ const FileHasherPage: React.FC = () => {
                                                 ) : (
                                                     <div className="info-message">
                                                         <p>No C Hash WASM hashes generated.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* asmcrypto.js Results */}
+                                        <div className="hash-group">
+                                            <Label className="section-label">
+                                                asmcrypto.js Results
+                                                {fileInfo.asmHashes.timeTaken && (
+                                                    <span className="time-badge">⚡ {(fileInfo.asmHashes.timeTaken / 1000).toFixed(2)}s</span>
+                                                )}
+                                            </Label>
+                                            <div className="hash-list">
+                                                {fileInfo.asmHashes && Object.keys(fileInfo.asmHashes).filter(k => k !== 'timeTaken').length > 0 ? (
+                                                    Object.entries(fileInfo.asmHashes)
+                                                        .filter(([alg]) => alg !== 'timeTaken')
+                                                        .map(([algorithm, hash]) => (
+                                                            <div key={`asm-${algorithm}`} className="hash-item">
+                                                                <div className="hash-header">
+                                                                    <span className="hash-algorithm">{algorithm.toUpperCase()}</span>
+                                                                    <button
+                                                                        className="btn-icon"
+                                                                        onClick={() => handleCopyHash(algorithm, hash!, 'asm')}
+                                                                        title="Copy to clipboard"
+                                                                    >
+                                                                        {copiedHash === `asm-${algorithm}` ? (
+                                                                            <Check size={16} className="text-success" />
+                                                                        ) : (
+                                                                            <Copy size={16} />
+                                                                        )}
+                                                                    </button>
+                                                                </div>
+                                                                <code className="hash-value">{hash}</code>
+                                                            </div>
+                                                        ))
+                                                ) : (
+                                                    <div className="info-message">
+                                                        <p>No asmcrypto.js hashes generated (supports SHA1/SHA256/SHA512 only).</p>
                                                     </div>
                                                 )}
                                             </div>
