@@ -37,7 +37,7 @@ async function loadWasmExec(): Promise<void> {
         try {
             importScripts('/wasm_exec.js');
             return;
-        } catch (e) {
+        } catch {
             console.log('[GoWorker] importScripts failed, trying fetch approach');
         }
     }
@@ -87,15 +87,12 @@ function initializeZeroCopyBuffer(instance: WebAssembly.Instance): void {
     const BUFFER_SIZE = 128 * 1024 * 1024; // 128MB buffer
     
     try {
-        // @ts-ignore - goAllocateBuffer is defined by Go WASM
         if (typeof goAllocateBuffer !== 'function') {
             console.log('[GoWorker] goAllocateBuffer function not available');
             useZeroCopy = false;
             return;
         }
 
-        // Ask Go to allocate a buffer and return the pointer
-        // @ts-ignore
         const result = goAllocateBuffer(BUFFER_SIZE);
         
         if (!result.success) {
@@ -150,7 +147,6 @@ async function hashFile(file: File, algorithms: string[]): Promise<void> {
 
     try {
         // Initialize hashers
-        // @ts-ignore
         goInitHashers(algorithms);
 
         const startTime = performance.now();
@@ -173,16 +169,13 @@ async function hashFile(file: File, algorithms: string[]): Promise<void> {
                 
                 if (wasmBufferView) {
                     wasmBufferView.set(uint8Array);
-                    // @ts-ignore - Go reads from its own memory, no copy needed!
                     goUpdateHashersZeroCopy(chunkLength);
                 } else {
                     // View creation failed, fall back to copy
-                    // @ts-ignore
                     goUpdateHashers(uint8Array);
                 }
             } else {
                 // Fallback: traditional copy method
-                // @ts-ignore
                 goUpdateHashers(uint8Array);
             }
 
@@ -198,7 +191,6 @@ async function hashFile(file: File, algorithms: string[]): Promise<void> {
         }
 
         // Finalize and get results
-        // @ts-ignore
         const result = goFinalizeHashers();
         const endTime = performance.now();
 

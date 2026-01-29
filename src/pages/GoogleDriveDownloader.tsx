@@ -62,7 +62,7 @@ const GoogleDriveDownloaderPage: React.FC = () => {
     const [directoryHandle, setDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
     const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
     const [itemLoading, setItemLoading] = useState<{ [key: string]: boolean }>({});
-    const isFirefox = typeof (window as any).InstallTrigger !== 'undefined';
+    const isFirefox = typeof (window as { InstallTrigger?: unknown }).InstallTrigger !== 'undefined';
 
     const CLIENT_ID = '1005080280366-oomuptpmo0lr51cnr7q0trkhpmt5vgsf.apps.googleusercontent.com';
 
@@ -313,7 +313,7 @@ const GoogleDriveDownloaderPage: React.FC = () => {
                 for (const file of allFiles) {
                     await downloadFile(rootHandle, file);
                 }
-            } catch (e) {
+            } catch {
                 setError('Folder download failed');
             } finally {
                 setItemLoading(prev => ({ ...prev, [item.id]: false }));
@@ -340,7 +340,7 @@ const GoogleDriveDownloaderPage: React.FC = () => {
                     await downloadFile(rootHandle, { ...item, path: item.name });
                 }
             }
-        } catch (e) {
+        } catch {
             setError('Bulk download failed');
         } finally {
             setLoading(false);

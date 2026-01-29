@@ -12,7 +12,7 @@
     "build:analyze": "cross-env ANALYZE=true tsc -b && vite build && npm run serve:analyzer",
     "analyze": "cross-env ANALYZE=true vite build && http-server dist -p 8888 -o stats.html",
     "serve:analyzer": "cross-env ANALYZE=true vite build && http-server dist -p 8888 -o stats.html",
-    "lint": "eslint . --fix",
+    "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {

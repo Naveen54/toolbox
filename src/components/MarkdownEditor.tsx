@@ -74,7 +74,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ fileHandle }) =>
         }, 2000);
 
         return () => clearTimeout(timeoutId);
-    }, [content, saveContent]);
+    }, [content, lastSaved, saveContent]);
 
     return (
         <div className="markdown-editor">

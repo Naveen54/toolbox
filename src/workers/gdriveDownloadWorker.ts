@@ -1,30 +1,40 @@
 // Web Worker for downloading GDrive files in chunks
 // This follows the logic from chunkDownloadAsset.js but adapted for GDrive
 
-import { priorityQueue } from "async";
+import { priorityQueue, type PriorityQueue } from "async";
 
 let PART_SIZE = 4 * 1024 * 1024; // 4MB chunks for GDrive
 const CONCURRENCY = 6;
 
+type QueueTask = { partNumber: number; range: [number, number] };
+
+type DownloadWorkerMessage = {
+    fileHandler: FileSystemFileHandle;
+    fileId: string;
+    accessToken: string;
+    size: number;
+    partsize?: number;
+};
+
 class GDriveAssetDownloader {
     totalParts: number = 0;
     writerRunning: boolean = false;
-    downloaderQueue: any;
+    downloaderQueue: PriorityQueue<QueueTask>;
     totalLoaded: number = 0;
-    progressTimer: any = null;
-    fileWriter: any;
+    progressTimer: ReturnType<typeof setInterval> | null = null;
+    fileWriter: FileSystemWritableFileStream;
     fileId: string;
     accessToken: string;
     size: number;
 
-    constructor({ fileWriter, fileId, accessToken, size }: { fileWriter: any, fileId: string, accessToken: string, size: number }) {
+    constructor({ fileWriter, fileId, accessToken, size }: { fileWriter: FileSystemWritableFileStream, fileId: string, accessToken: string, size: number }) {
         this.fileWriter = fileWriter;
         this.fileId = fileId;
         this.accessToken = accessToken;
         this.size = size;
 
-        this.downloaderQueue = priorityQueue(async (task: any) => {
-            let lastError;
+        this.downloaderQueue = priorityQueue(async (task: QueueTask) => {
+            let lastError: unknown;
             for (let i = 0; i < 5; i++) {
                 try {
                     await this.downloadPart(task);
@@ -33,7 +43,7 @@ class GDriveAssetDownloader {
                     lastError = e;
                     console.warn(`[Worker] Retrying part ${task.partNumber} (${i + 1}/5) due to error: ${e}`);
                     if (i < 4) {
-                        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+                        await new Promise<void>(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
                     }
                 }
             }
@@ -41,7 +51,7 @@ class GDriveAssetDownloader {
         }, CONCURRENCY);
 
         this.downloaderQueue.drain(async () => {
-            clearInterval(this.progressTimer);
+            if (this.progressTimer) clearInterval(this.progressTimer);
             postMessage({ type: "PROGRESS", downloaded: this.totalLoaded });
             this.totalLoaded = 0;
             postMessage({ type: "CLOSING_FILE" });
@@ -49,10 +59,10 @@ class GDriveAssetDownloader {
             postMessage({ type: "DOWNLOAD_COMPLETED" });
         });
 
-        this.downloaderQueue.error(async (err: any) => {
+        this.downloaderQueue.error(async (err: Error) => {
             this.downloaderQueue.kill();
             await this.fileWriter.close();
-            clearInterval(this.progressTimer);
+            if (this.progressTimer) clearInterval(this.progressTimer);
             postMessage({ type: "DOWNLOAD_FAILED", error: err.message });
         });
     }
@@ -97,10 +107,8 @@ class GDriveAssetDownloader {
     };
 
     writeData = async ({ data, offset }: { data: ArrayBuffer, offset: number }) => {
-        let waitCount = 0;
         while (this.writerRunning) {
-            waitCount++;
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise<void>(resolve => setTimeout(resolve, 10));
         }
 
         try {
@@ -117,7 +125,7 @@ class GDriveAssetDownloader {
 }
 
 onmessage = async (event) => {
-    const { fileHandler, fileId, accessToken, size, partsize } = event.data;
+    const { fileHandler, fileId, accessToken, size, partsize } = event.data as DownloadWorkerMessage;
     try {
         const fileWriter = await fileHandler.createWritable();
         const downloader = new GDriveAssetDownloader({ fileWriter, fileId, accessToken, size });

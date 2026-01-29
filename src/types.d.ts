@@ -3,8 +3,8 @@ export { };
 declare global {
     interface Window {
         showDirectoryPicker(options?: { mode?: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle>;
-        showOpenFilePicker(options?: any): Promise<FileSystemFileHandle[]>;
-        showSaveFilePicker(options?: any): Promise<FileSystemFileHandle>;
+        showOpenFilePicker(options?: unknown): Promise<FileSystemFileHandle[]>;
+        showSaveFilePicker(options?: unknown): Promise<FileSystemFileHandle>;
         
         // Go WASM
         Go: new () => Go;
@@ -32,7 +32,7 @@ declare global {
     interface FileSystemFileHandle extends FileSystemHandle {
         kind: 'file';
         getFile(): Promise<File>;
-        createWritable(options?: any): Promise<FileSystemWritableFileStream>;
+        createWritable(options?: unknown): Promise<FileSystemWritableFileStream>;
     }
 
     interface FileSystemDirectoryHandle extends FileSystemHandle {
@@ -47,7 +47,7 @@ declare global {
     }
 
     interface FileSystemWritableFileStream extends WritableStream {
-        write(data: any): Promise<void>;
+        write(data: unknown): Promise<void>;
         seek(position: number): Promise<void>;
         truncate(size: number): Promise<void>;
     }
