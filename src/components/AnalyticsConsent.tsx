@@ -4,11 +4,11 @@ import {
   getAnalyticsConsent,
   setAnalyticsConsent,
   subscribeToAnalyticsConsent,
-  type AnalyticsConsent,
+  type AnalyticsConsent as AnalyticsConsentValue,
 } from '../utils/consent';
 
 export const AnalyticsConsent = () => {
-  const [consent, setConsent] = useState<AnalyticsConsent | null>(
+  const [consent, setConsent] = useState<AnalyticsConsentValue | null>(
     getAnalyticsConsent(),
   );
 
