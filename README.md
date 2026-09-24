@@ -1,5 +1,18 @@
 # React + TypeScript + Vite
 
+## Analytics configuration
+
+Analytics is disabled until the user accepts the consent banner. Configure
+these Vite environment variables in the deployment environment to enable the
+corresponding provider:
+
+- `VITE_GA_MEASUREMENT_ID` for Google Analytics 4
+- `VITE_CLARITY_PROJECT_ID` for Microsoft Clarity
+
+Custom events sent through the shared analytics helper are forwarded to both
+providers after consent. Clarity automatically detects route changes in this
+single-page application.
+
 [![Netlify Status](https://api.netlify.com/api/v1/badges/5cbd50d1-5d3c-434a-b42a-2fe2c15d9674/deploy-status)](https://app.netlify.com/projects/ntoolbox/deploys)
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

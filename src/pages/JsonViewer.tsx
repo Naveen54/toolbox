@@ -7,10 +7,38 @@ import { withPageView } from '../utils/withPageView';
 import { trackEvent } from '../utils/analytics';
 
 const JsonViewerPage: React.FC = () => {
-    const [input, setInput] = useState<string>('{\n  "welcome": "to DevToolbox",\n  "features": [\n    "JSON Viewer",\n    "Premium Design"\n  ]\n}');
+    const [input, setInput] = useState<string>('');
     const [json, setJson] = useState<object | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        fetch('https://jsonplaceholder.typicode.com/todos/1')
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error(`Failed to load default JSON (${response.status})`);
+                }
+                return response.json();
+            })
+            .then((data) => {
+                if (!cancelled) {
+                    setInput(JSON.stringify(data, null, 2));
+                    setLoadError(null);
+                }
+            })
+            .catch((e) => {
+                if (!cancelled) {
+                    setLoadError((e as Error).message);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         try {
@@ -72,6 +100,7 @@ const JsonViewerPage: React.FC = () => {
                     <div className="pane-header">
                         <Label>Input</Label>
                         {error && <span className="error-badge"><AlertCircle size={14} /> Invalid JSON</span>}
+                        {loadError && <span className="error-badge"><AlertCircle size={14} /> Default API failed</span>}
                     </div>
                     <textarea
                         className="json-input"
@@ -83,6 +112,11 @@ const JsonViewerPage: React.FC = () => {
                     {error && (
                         <div className="error-message">
                             {error}
+                        </div>
+                    )}
+                    {loadError && (
+                        <div className="error-message">
+                            {loadError}
                         </div>
                     )}
                 </div>

@@ -1,4 +1,5 @@
 import ReactGA from 'react-ga4';
+import { trackClarityEvent } from './clarity';
 
 let gaInitialized = false;
 const USER_ID_STORAGE_KEY = 'devtoolbox_user_id';
@@ -66,10 +67,12 @@ export const trackPageView = (path: string, title?: string) => {
 type AnalyticsParams = Record<string, string | number | boolean | null | undefined>;
 
 export const trackEvent = (eventName: string, params?: AnalyticsParams) => {
-  if (!gaInitialized) return;
+  if (gaInitialized) {
+    ReactGA.event(eventName, {
+      ...params,
+      debug_mode: import.meta.env.DEV ? true : undefined,
+    });
+  }
 
-  ReactGA.event(eventName, {
-    ...params,
-    debug_mode: import.meta.env.DEV ? true : undefined,
-  });
+  trackClarityEvent(eventName);
 };

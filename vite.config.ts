@@ -22,7 +22,9 @@ export default defineConfig(() => {
       // Required headers for SharedArrayBuffer support
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
+        // credentialless (not require-corp) so third-party scripts like Clarity/GA,
+        // which don't send Cross-Origin-Resource-Policy, aren't blocked.
+        'Cross-Origin-Embedder-Policy': 'credentialless',
       },
     },
   }
